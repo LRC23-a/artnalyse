@@ -36,7 +36,7 @@ exports.handler = async function(event, context) {
           ]
         }`;
 
-        // Appel à l'API Gemini 1.5 Flash
+        // Endpoint corrigé pour Gemini 1.5 Flash
         const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
             {
@@ -61,7 +61,6 @@ exports.handler = async function(event, context) {
         );
 
         const data = await response.json();
-        console.log("Réponse de Gemini :", JSON.stringify(data));
 
         if (data.error) {
             console.error("Erreur renvoyée par Gemini :", data.error);
