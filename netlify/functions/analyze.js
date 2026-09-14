@@ -1,10 +1,12 @@
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
 exports.handler = async function(event, context) {
     if (event.httpMethod !== "POST") {
         return { statusCode: 405, body: "Method Not Allowed" };
     }
 
     try {
-        console.log("--- Début du traitement de l'image ---");
+        console.log("--- Début du traitement de l'image (SDK Officiel) ---");
         
         const { imageBase64 } = JSON.parse(event.body);
         const apiKey = process.env.GEMINI_API_KEY;
@@ -13,11 +15,16 @@ exports.handler = async function(event, context) {
             console.error("ERREUR: Clé GEMINI_API_KEY absente !");
             return {
                 statusCode: 500,
-                body: JSON.stringify({ error: "Clé API non trouvée dans Netlify." })
+                body: JSON.stringify({ error: "Clé API non trouvée dans les variables Netlify." })
             };
         }
 
+        // Nettoyage de la chaîne base64
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+
+        // Initialisation du client officiel Google Gemini
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
         const promptText = `
         Analyse cette photo de tableau ou d'œuvre d'art et identifie-la.
@@ -36,42 +43,19 @@ exports.handler = async function(event, context) {
           ]
         }`;
 
-        // Endpoint corrigé pour Gemini 1.5 Flash
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
-                                { text: promptText },
-                                {
-                                    inline_data: {
-                                        mime_type: "image/jpeg",
-                                        data: base64Data
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                })
+        const imagePart = {
+            inlineData: {
+                data: base64Data,
+                mimeType: "image/jpeg"
             }
-        );
+        };
 
-        const data = await response.json();
+        const result = await model.generateContent([promptText, imagePart]);
+        const responseText = result.response.text();
 
-        if (data.error) {
-            console.error("Erreur renvoyée par Gemini :", data.error);
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ error: data.error.message })
-            };
-        }
+        console.log("Réponse brute de Gemini :", responseText);
 
-        const rawText = data.candidates[0].content.parts[0].text;
-        const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+        const cleanedJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
 
         return {
             statusCode: 200,
@@ -79,7 +63,7 @@ exports.handler = async function(event, context) {
             body: cleanedJson
         };
     } catch (error) {
-        console.error("Erreur serveur :", error.message);
+        console.error("Erreur serveur SDK :", error.message);
         return {
             statusCode: 500,
             body: JSON.stringify({ error: error.message })
